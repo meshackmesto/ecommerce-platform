@@ -1,0 +1,10 @@
+/* File: frontend/src/assets/css/main.css */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gradient-to-br from-green-50 via-teal-50 to-cyan-100;
+}
