@@ -1,28 +1,28 @@
+//go:build ignore
+
 package main
 
 import (
-    "log"
-    "ecommerce-platform/internal/database"
-    "github.com/joho/godotenv"
+	"ecommerce-platform/internal/config"
+	"ecommerce-platform/internal/database"
+	"log"
 )
 
 func main() {
-    // Load environment variables
-    if err := godotenv.Load(); err != nil {
-        log.Println("No .env file found")
-    }
+	// Load configuration (which loads .env)
+	cfg := config.LoadConfig()
 
-    // Connect to database
-    db, err := database.NewConnection()
-    if err != nil {
-        log.Fatal("Failed to connect to database:", err)
-    }
-    defer db.Close()
+	// Connect to database
+	db, err := database.InitDB(cfg)
+	if err != nil {
+		log.Fatal("Failed to connect to database:", err)
+	}
+	defer db.Close()
 
-    // Run migrations
-    if err := db.RunMigrations(); err != nil {
-        log.Fatal("Failed to run migrations:", err)
-    }
+	// Run migrations
+	if err := database.RunMigrations(db); err != nil {
+		log.Fatal("Failed to run migrations:", err)
+	}
 
-    log.Println("Database setup completed successfully!")
+	log.Println("Database setup completed successfully!")
 }

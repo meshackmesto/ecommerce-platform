@@ -3,7 +3,10 @@ package main
 import (
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"ecommerce-platform/internal/config"
 	"ecommerce-platform/internal/controllers"
 	"ecommerce-platform/internal/database"
 	"ecommerce-platform/internal/middleware"
@@ -11,105 +14,138 @@ import (
 	"ecommerce-platform/internal/services"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/joho/godotenv"
+	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/websocket/v2"
 )
 
 func main() {
-	// Load environment variables
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
-	}
+	// Load configuration
+	cfg := config.LoadConfig()
 
-	// Connect to database
-	db, err := database.NewConnection()
+	// Initialize database
+	db, err := database.InitDB(cfg)
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer db.Close()
 
 	// Run migrations
-	if err := db.RunMigrations(); err != nil {
-		log.Fatal("Failed to run migrations:", err)
-	}
-
+	 if err := database.RunMigrations(db); err != nil { // This now correctly calls the package-level function
+        log.Fatalf("Failed to run migrations: %v", err)
+    }
 	// Initialize repositories
 	userRepo := repositories.NewUserRepository(db)
+	productRepo := repositories.NewProductRepository(db)
+	orderRepo := repositories.NewOrderRepository(db)
+	transactionRepo := repositories.NewTransactionRepository(db)
 
 	// Initialize services
-	authService := services.NewAuthService(userRepo)
+	authService := services.NewAuthService(userRepo, cfg.JWTSecret)
+	productService := services.NewProductService(productRepo)
+	orderService := services.NewOrderService(orderRepo, productRepo)
+	paymentService := services.NewPaymentService(transactionRepo, orderRepo)
 
 	// Initialize controllers
 	authController := controllers.NewAuthController(authService)
+	productController := controllers.NewProductController(productService)
+	orderController := controllers.NewOrderController(orderService)
+	paymentController := controllers.NewPaymentController(paymentService)
 
-	// Create Fiber app
+	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			code := fiber.StatusInternalServerError
-			if e, ok := err.(*fiber.Error); ok {
-				code = e.Code
-			}
-			return c.Status(code).JSON(fiber.Map{
-				"success": false,
-				"message": "Something went wrong",
-				"error":   err.Error(),
-			})
-		},
+		ErrorHandler: middleware.ErrorHandler,
 	})
 
-	// Middleware
-	app.Use(logger.New())
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: "*",
-		AllowMethods: "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
-		AllowHeaders: "Origin,Content-Type,Accept,Authorization",
+	// Global middleware
+	app.Use(recover.New())
+	app.Use(middleware.Logger())
+	app.Use(middleware.CORS())
+
+	// WebSocket upgrade middleware
+	app.Use("/ws", func(c *fiber.Ctx) error {
+		if websocket.IsWebSocketUpgrade(c) {
+			c.Locals("allowed", true)
+			return c.Next()
+		}
+		return fiber.ErrUpgradeRequired
+	})
+
+	// WebSocket handler for payment status updates
+	app.Get("/ws", websocket.New(func(c *websocket.Conn) {
+		// Handle WebSocket connections for real-time updates
+		paymentController.HandleWebSocket(c)
 	}))
 
-	// Health check route
+	// API routes
+	api := app.Group("/api/v1")
+
+	// Auth routes (public)
+	auth := api.Group("/auth")
+	auth.Post("/register", authController.Register)
+	auth.Post("/login", authController.Login)
+	auth.Post("/refresh", authController.RefreshToken)
+
+	// Protected routes
+	protected := api.Group("/")
+	protected.Use(middleware.JWTAuth(cfg.JWTSecret))
+
+	// User routes
+	user := protected.Group("/user")
+	user.Get("/profile", authController.GetProfile)
+	user.Put("/profile", authController.UpdateProfile)
+
+	// Product routes
+	products := api.Group("/products")
+	products.Get("/", productController.GetProducts) // Public
+	products.Get("/:id", productController.GetProduct) // Public
+	
+	// Protected product routes (admin only)
+	adminProducts := protected.Group("/admin/products")
+	adminProducts.Use(middleware.RequireRole("admin"))
+	adminProducts.Post("/", productController.CreateProduct)
+	adminProducts.Put("/:id", productController.UpdateProduct)
+	adminProducts.Delete("/:id", productController.DeleteProduct)
+
+	// Order routes (protected)
+	orders := protected.Group("/orders")
+	orders.Get("/", orderController.GetUserOrders)
+	orders.Post("/", orderController.CreateOrder)
+	orders.Get("/:id", orderController.GetOrder)
+	orders.Put("/:id/cancel", orderController.CancelOrder)
+
+	// Admin order routes
+	adminOrders := protected.Group("/admin/orders")
+	adminOrders.Use(middleware.RequireRole("admin"))
+	adminOrders.Get("/", orderController.GetAllOrders)
+	adminOrders.Put("/:id/status", orderController.UpdateOrderStatus)
+
+	// Payment routes (protected)
+	payments := protected.Group("/payments")
+	payments.Post("/mpesa/initiate", paymentController.InitiateMpesaPayment)
+	payments.Post("/mpesa/callback", paymentController.MpesaCallback) // This might need to be public for M-Pesa callbacks
+	payments.Get("/:id/status", paymentController.GetPaymentStatus)
+
+	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
-			"status":  "ok",
+			"status": "ok",
 			"message": "E-commerce API is running",
 		})
 	})
 
-	// API routes
-	api := app.Group("/api")
+	// Handle graceful shutdown
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
-	// Authentication routes (public)
-	auth := api.Group("/auth")
-	auth.Post("/register", authController.Register)
-	auth.Post("/login", authController.Login)
-
-	// Protected user routes (require authentication)
-	user := api.Group("/user")
-	user.Use(middleware.AuthMiddleware())
-	user.Get("/me", authController.Me)
-
-	// Admin routes (require admin role)
-	admin := api.Group("/admin")
-	admin.Use(middleware.AuthMiddleware())
-	admin.Use(middleware.AdminMiddleware())
-	admin.Get("/dashboard", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{
-			"success": true,
-			"message": "Welcome to admin dashboard",
-			"data": fiber.Map{
-				"user_email": c.Locals("user_email"),
-				"user_role":  c.Locals("user_role"),
-			},
-		})
-	})
+	go func() {
+		<-c
+		log.Println("Gracefully shutting down...")
+		_ = app.Shutdown()
+	}()
 
 	// Start server
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8079"
-	}
-
-	log.Printf("Server starting on port %s", port)
-	if err := app.Listen(":" + port); err != nil {
-		log.Fatal("Failed to start server:", err)
+	log.Printf("Server starting on port %s", cfg.Port)
+	if err := app.Listen(":" + cfg.Port); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
 	}
 }

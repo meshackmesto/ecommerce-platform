@@ -2,10 +2,10 @@ package database
 
 import (
     "database/sql"
+    "ecommerce-platform/internal/config"
     "fmt"
     "io/ioutil"
     "log"
-    "os"
     "path/filepath"
     "sort"
     "strings"
@@ -17,15 +17,10 @@ type DB struct {
     *sql.DB
 }
 
-func NewConnection() (*DB, error) {
-    dbHost := getEnv("DB_HOST", "localhost")
-    dbPort := getEnv("DB_PORT", "5432")
-    dbUser := getEnv("DB_USER", "postgres")
-    dbPassword := getEnv("DB_PASSWORD", "password")
-    dbName := getEnv("DB_NAME", "ecommerce")
-
+// InitDB initializes the database connection using the provided configuration.
+func InitDB(cfg *config.Config) (*DB, error) {
     dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-        dbHost, dbPort, dbUser, dbPassword, dbName)
+        cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName)
 
     db, err := sql.Open("postgres", dsn)
     if err != nil {
@@ -40,8 +35,8 @@ func NewConnection() (*DB, error) {
     return &DB{db}, nil
 }
 
-func (db *DB) RunMigrations() error {
-    // Create migrations table if it doesn't exist
+// RunMigrations executes all .sql migration files that haven't been run yet.
+func RunMigrations(db *DB) error {
     createMigrationsTable := `
         CREATE TABLE IF NOT EXISTS migrations (
             id SERIAL PRIMARY KEY,
@@ -49,7 +44,6 @@ func (db *DB) RunMigrations() error {
             executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     `
-    
     if _, err := db.Exec(createMigrationsTable); err != nil {
         return fmt.Errorf("failed to create migrations table: %w", err)
     }
@@ -60,7 +54,6 @@ func (db *DB) RunMigrations() error {
         return fmt.Errorf("failed to read migrations directory: %w", err)
     }
 
-    // Sort migration files
     var migrationFiles []string
     for _, file := range files {
         if strings.HasSuffix(file.Name(), ".sql") {
@@ -70,7 +63,6 @@ func (db *DB) RunMigrations() error {
     sort.Strings(migrationFiles)
 
     for _, filename := range migrationFiles {
-        // Check if migration already executed
         var count int
         err := db.QueryRow("SELECT COUNT(*) FROM migrations WHERE filename = $1", filename).Scan(&count)
         if err != nil {
@@ -78,11 +70,9 @@ func (db *DB) RunMigrations() error {
         }
 
         if count > 0 {
-            log.Printf("Migration %s already executed, skipping", filename)
-            continue
+            continue // Skip already executed migration
         }
 
-        // Execute migration
         migrationPath := filepath.Join(migrationsDir, filename)
         content, err := ioutil.ReadFile(migrationPath)
         if err != nil {
@@ -93,7 +83,6 @@ func (db *DB) RunMigrations() error {
             return fmt.Errorf("failed to execute migration %s: %w", filename, err)
         }
 
-        // Record migration as executed
         if _, err := db.Exec("INSERT INTO migrations (filename) VALUES ($1)", filename); err != nil {
             return fmt.Errorf("failed to record migration %s: %w", filename, err)
         }
@@ -101,12 +90,6 @@ func (db *DB) RunMigrations() error {
         log.Printf("Successfully executed migration: %s", filename)
     }
 
+    log.Println("Database migrations are up to date.")
     return nil
-}
-
-func getEnv(key, defaultValue string) string {
-    if value := os.Getenv(key); value != "" {
-        return value
-    }
-    return defaultValue
 }
