@@ -1,35 +1,65 @@
 // File: frontend/src/components/common/Header.vue
 <template>
-  <header class="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-50">
-    <nav class="container mx-auto px-4 py-4 flex justify-between items-center">
-      <router-link to="/" class="text-2xl font-bold text-gray-800">
-        Gadget & Grove
-      </router-link>
-      <div class="hidden md:flex items-center space-x-8">
-        <router-link to="/" class="text-gray-600 hover:text-teal-500 transition">Home</router-link>
-        <router-link to="/products" class="text-gray-600 hover:text-teal-500 transition">Shop</router-link>
+  <Disclosure as="nav" class="bg-card/80 backdrop-blur-md shadow-sm sticky top-0 z-50" v-slot="{ open }">
+    <div class="container mx-auto px-4">
+      <div class="relative flex h-16 items-center justify-between">
+        <div class="absolute inset-y-0 left-0 flex items-center sm:hidden">
+          <DisclosureButton class="inline-flex items-center justify-center rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary">
+            <span class="sr-only">Open main menu</span>
+            <Bars3Icon v-if="!open" class="block h-6 w-6" aria-hidden="true" />
+            <XMarkIcon v-else class="block h-6 w-6" aria-hidden="true" />
+          </DisclosureButton>
+        </div>
+        <div class="flex flex-1 items-center justify-center sm:items-stretch sm:justify-start">
+          <div class="flex flex-shrink-0 items-center">
+            <router-link to="/" class="text-2xl font-bold text-foreground">
+              Gadget & Grove
+            </router-link>
+          </div>
+          <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+            <router-link to="/" class="nav-link">Home</router-link>
+            <router-link to="/products" class="nav-link">Shop</router-link>
+          </div>
+        </div>
+        <div class="absolute inset-y-0 right-0 flex items-center pr-2 sm:static sm:inset-auto sm:ml-6 sm:pr-0">
+          <router-link to="/cart" class="relative rounded-full p-1 text-muted-foreground hover:text-foreground">
+             <ShoppingBagIcon class="h-6 w-6" aria-hidden="true" />
+             <span v-if="cartStore.cartItemCount > 0" class="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-4 w-4 flex items-center justify-center">{{ cartStore.cartItemCount }}</span>
+          </router-link>
+          <div v-if="authStore.isAuthenticated" class="hidden sm:flex items-center space-x-4 ml-4">
+              <router-link to="/profile" class="font-semibold text-sm text-foreground hover:text-primary">{{ authStore.user.first_name }}</router-link>
+              <router-link v-if="authStore.isAdmin" to="/admin" class="btn-secondary text-xs !py-1 !px-3">Admin</router-link>
+              <button @click="handleLogout" class="text-sm text-muted-foreground hover:text-foreground">Logout</button>
+            </div>
+            <div v-else class="hidden sm:flex items-center space-x-2 ml-4">
+              <router-link to="/login" class="btn-secondary !py-2 !px-4">Login</router-link>
+              <router-link to="/register" class="btn-primary !py-2 !px-4">Register</router-link>
+            </div>
+        </div>
       </div>
-      <div class="flex items-center space-x-6">
-        <router-link to="/cart" class="relative text-gray-600 hover:text-teal-500 transition">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-          <span v-if="cartStore.cartItemCount > 0" class="absolute -top-2 -right-2 bg-teal-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">{{ cartStore.cartItemCount }}</span>
-        </router-link>
+    </div>
 
-        <div v-if="authStore.isAuthenticated" class="flex items-center space-x-4">
-          <router-link to="/profile" class="font-semibold text-gray-600 hover:text-teal-500">{{ authStore.user.first_name }}</router-link>
-          <router-link v-if="authStore.isAdmin" to="/admin" class="text-sm bg-teal-500 text-white px-3 py-1 rounded-full">Admin</router-link>
-          <button @click="handleLogout" class="text-gray-600 hover:text-teal-500">Logout</button>
+    <DisclosurePanel class="sm:hidden">
+      <div class="space-y-1 px-2 pb-3 pt-2">
+        <DisclosureButton as="router-link" to="/" class="nav-link-mobile">Home</DisclosureButton>
+        <DisclosureButton as="router-link" to="/products" class="nav-link-mobile">Shop</DisclosureButton>
+        <div v-if="!authStore.isAuthenticated" class="border-t border-border pt-4 mt-4 flex flex-col space-y-2">
+            <DisclosureButton as="router-link" to="/login" class="btn-secondary w-full">Login</DisclosureButton>
+            <DisclosureButton as="router-link" to="/register" class="btn-primary w-full">Register</DisclosureButton>
         </div>
-        <div v-else class="hidden md:flex items-center space-x-4">
-          <router-link to="/login" class="text-gray-600 font-semibold hover:text-teal-500">Login</router-link>
-          <router-link to="/register" class="bg-gray-800 text-white px-5 py-2 rounded-lg font-semibold hover:bg-gray-900">Register</router-link>
+         <div v-else class="border-t border-border pt-4 mt-4 space-y-2">
+            <DisclosureButton as="router-link" to="/profile" class="nav-link-mobile">Profile</DisclosureButton>
+            <DisclosureButton v-if="authStore.isAdmin" as="router-link" to="/admin" class="nav-link-mobile">Admin Panel</DisclosureButton>
+            <button @click="handleLogout" class="nav-link-mobile text-left w-full">Logout</button>
         </div>
       </div>
-    </nav>
-  </header>
+    </DisclosurePanel>
+  </Disclosure>
 </template>
 
 <script setup>
+import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'
+import { Bars3Icon, XMarkIcon, ShoppingBagIcon } from '@heroicons/vue/24/outline'
 import { useAuthStore } from '../../store/modules/auth';
 import { useCartStore } from '../../store/modules/cart';
 import { useRouter } from 'vue-router';
@@ -43,3 +73,19 @@ const handleLogout = () => {
   router.push('/login');
 };
 </script>
+
+<style scoped>
+/* Here we use a scoped style block for component-specific styles */
+.nav-link {
+    @apply inline-flex items-center border-b-2 border-transparent px-1 pt-1 text-sm font-medium text-muted-foreground hover:border-border hover:text-foreground;
+}
+.router-link-exact-active.nav-link {
+    @apply border-primary text-foreground;
+}
+.nav-link-mobile {
+    @apply block rounded-md px-3 py-2 text-base font-medium text-muted-foreground hover:bg-secondary hover:text-foreground;
+}
+.router-link-exact-active.nav-link-mobile {
+    @apply bg-accent-light text-accent;
+}
+</style>

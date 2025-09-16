@@ -1,47 +1,70 @@
 // File: frontend/src/components/admin/ProductManagement.vue
 <template>
     <div>
-        <div class="flex justify-between items-center mb-6">
-            <h1 class="text-3xl font-bold text-gray-800">Product Management</h1>
-            <button @click="openModal" class="bg-gray-800 text-white font-semibold py-2 px-5 rounded-lg hover:bg-gray-900 transition duration-300">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-4xl font-bold text-foreground">Products</h1>
+            <button class="flex items-center bg-primary text-primary-foreground font-semibold py-2 px-4 rounded-lg hover:bg-primary-hover transition-colors">
+                <PlusIcon class="h-5 w-5 mr-2" />
                 Add New Product
             </button>
         </div>
 
-        <div class="bg-white p-6 rounded-lg shadow">
-            <ProductList />
+        <div class="space-y-4">
+            <div v-if="productStore.loading"><Loading /></div>
+            <div v-else v-for="product in productStore.products" :key="product.id" class="bg-card p-4 rounded-lg shadow-custom-md flex items-center justify-between">
+                <div class="flex items-center">
+                    <img :src="getPrimaryImage(product)" class="h-12 w-12 rounded-md object-cover mr-4">
+                    <div>
+                        <p class="text-sm font-semibold text-primary uppercase">{{ product.category || 'Uncategorized' }}</p>
+                        <p class="text-lg font-bold text-foreground">{{ product.name }}</p>
+                        <p class="text-sm text-muted-foreground">{{ product.description }}</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-8 text-sm text-center">
+                    <div>
+                        <p class="text-muted-foreground font-medium">PRICE</p>
+                        <p class="text-foreground font-semibold">{{ formatCurrency(product.price) }}</p>
+                    </div>
+                     <div>
+                        <p class="text-muted-foreground font-medium">STOCK</p>
+                        <p class="text-foreground font-semibold">{{ product.stock_quantity }}</p>
+                    </div>
+                    <div>
+                        <p class="text-muted-foreground font-medium">STATUS</p>
+                        <p class="flex items-center text-foreground font-semibold">
+                            <span class="h-2 w-2 rounded-full mr-2" :class="product.is_active ? 'bg-success' : 'bg-destructive'"></span>
+                            {{ product.is_active ? 'Active' : 'Draft' }}
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button class="text-muted-foreground hover:text-foreground"><PencilIcon class="h-5 w-5" /></button>
+                    <button class="text-muted-foreground hover:text-destructive"><TrashIcon class="h-5 w-5" /></button>
+                </div>
+            </div>
         </div>
-
-        <Modal :isOpen="isModalOpen" @close="closeModal">
-            <template #title>Add New Product</template>
-            <template #content>
-                <ProductForm @submit="handleCreateProduct" @cancel="closeModal" />
-            </template>
-        </Modal>
     </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { onMounted } from 'vue';
 import { useProductStore } from '../../store/modules/products';
-import ProductList from '../product/ProductList.vue';
-import ProductForm from '../product/ProductForm.vue';
-import Modal from '../common/Modal.vue';
+import { formatCurrency } from '../../utils/helpers';
+import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/vue/24/outline';
+import Loading from '../common/Loading.vue';
 
-const isModalOpen = ref(false);
 const productStore = useProductStore();
 
-const openModal = () => isModalOpen.value = true;
-const closeModal = () => isModalOpen.value = false;
+onMounted(() => {
+    productStore.fetchProducts();
+});
 
-const handleCreateProduct = async (formData) => {
-    try {
-        await productStore.createProduct(formData);
-        alert('Product created successfully!');
-        closeModal();
-    } catch (error) {
-        console.error("Failed to create product:", error);
-        alert('Error: ' + error.message);
-    }
+const getPrimaryImage = (product) => {
+  try {
+    const images = JSON.parse(product.images);
+    return images && images.length > 0 ? images[0] : 'https://via.placeholder.com/150';
+  } catch (e) {
+    return 'https://via.placeholder.com/150';
+  }
 };
 </script>

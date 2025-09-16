@@ -1,21 +1,21 @@
+// File: frontend/src/components/auth/LoginForm.vue
 <template>
   <form class="mt-8 space-y-6" @submit.prevent="handleLogin">
-    <div v-if="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-      <span class="block sm:inline">{{ error }}</span>
+    <div v-if="error" class="bg-destructive-light border border-destructive text-destructive px-4 py-3 rounded-md text-sm" role="alert">
+      <span>{{ error }}</span>
     </div>
-    <div class="rounded-md shadow-sm -space-y-px">
+    <div class="space-y-4">
       <div>
-        <label for="email-address" class="sr-only">Email address</label>
-        <input id="email-address" v-model="email" name="email" type="email" autocomplete="email" required class="relative block w-full appearance-none rounded-none rounded-t-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-teal-500 focus:outline-none focus:ring-teal-500 sm:text-sm" placeholder="Email address">
+        <label for="email-address" class="form-label">Email address</label>
+        <input id="email-address" v-model="email" type="email" required class="form-input" placeholder="name@company.com">
       </div>
       <div>
-        <label for="password" class="sr-only">Password</label>
-        <input id="password" v-model="password" name="password" type="password" autocomplete="current-password" required class="relative block w-full appearance-none rounded-none rounded-b-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-teal-500 focus:outline-none focus:ring-teal-500 sm:text-sm" placeholder="Password">
+        <label for="password" class="form-label">Password</label>
+        <input id="password" v-model="password" type="password" required class="form-input" placeholder="••••••••">
       </div>
     </div>
-
     <div>
-      <button type="submit" :disabled="loading" class="group relative flex w-full justify-center rounded-md border border-transparent bg-gray-800 py-2 px-4 text-sm font-medium text-white hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:bg-gray-400">
+      <button type="submit" :disabled="loading" class="btn-primary w-full justify-center !py-3">
         {{ loading ? 'Signing in...' : 'Sign in' }}
       </button>
     </div>
@@ -23,6 +23,7 @@
 </template>
 
 <script setup>
+// Script content remains the same as before
 import { ref } from 'vue';
 import { useAuthStore } from '../../store/modules/auth';
 import { useRouter } from 'vue-router';
@@ -31,7 +32,6 @@ const email = ref('');
 const password = ref('');
 const error = ref(null);
 const loading = ref(false);
-
 const authStore = useAuthStore();
 const router = useRouter();
 
@@ -52,3 +52,8 @@ const handleLogin = async () => {
   }
 };
 </script>
+
+<style scoped>
+.form-label { @apply block mb-2 text-sm font-medium text-foreground; }
+.form-input { @apply bg-secondary border border-border text-foreground text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5; }
+</style>
